@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Buzzing Bees Noise Meter</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;overflow:hidden;background:#5eb6f0;
+    font-family:"Trebuchet MS","Segoe UI",Tahoma,Arial,sans-serif;color:#2b2a4c}
+  canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
+
+  /* red glowing screen edges + flashing */
+  #edge{position:fixed;inset:0;pointer-events:none;opacity:0;
+    box-shadow:inset 0 0 130px 45px rgba(255,20,20,.9)}
+  #flash{position:fixed;inset:0;pointer-events:none;opacity:0;background:rgba(255,40,40,.38)}
+
+  /* big Shhh */
+  #shh{position:fixed;left:50%;top:50%;pointer-events:none;text-align:center;opacity:0;
+    transform:translate(-50%,-50%) scale(.4);transition:opacity .25s,transform .3s}
+  #shh.on{opacity:.96;transform:translate(-50%,-50%) scale(1);animation:wob .5s ease-in-out infinite alternate}
+  #shh .emoji{font-size:min(34vw,36vh);line-height:1;filter:drop-shadow(0 6px 10px rgba(0,0,0,.35))}
+  #shh .word{font-size:min(15vw,17vh);font-weight:900;line-height:1;color:#fff;letter-spacing:.02em;
+    text-shadow:0 0 0 #000,-4px -4px 0 #d3202a,4px -4px 0 #d3202a,-4px 4px 0 #d3202a,4px 4px 0 #d3202a,0 8px 18px rgba(0,0,0,.4)}
+  @keyframes wob{from{transform:translate(-50%,-50%) scale(1) rotate(-2deg)}to{transform:translate(-50%,-50%) scale(1.06) rotate(2deg)}}
+
+  /* top-left chip and credit */
+  #chip{position:fixed;left:12px;top:12px;padding:7px 14px;border-radius:999px;font-weight:700;font-size:15px;
+    background:rgba(255,255,255,.82);box-shadow:0 2px 8px rgba(0,0,0,.15)}
+  #credit{position:fixed;right:12px;bottom:10px;font-size:12px;font-weight:700;color:#fff;
+    text-shadow:0 1px 3px rgba(0,60,0,.8);text-align:right;max-width:24vw}
+
+  /* volume strip */
+  #meterWrap{position:fixed;left:50%;bottom:12px;transform:translateX(-50%);width:min(520px,52vw);text-align:center}
+  #mlabel{display:block;font-size:12px;font-weight:700;color:#fff;text-shadow:0 1px 3px rgba(0,60,0,.8);margin-bottom:3px}
+  #meter{position:relative;height:16px;border-radius:99px;overflow:hidden;border:2px solid #fff;
+    background:linear-gradient(90deg,#3fd35e 0%,#ffd93d 55%,#ff4b4b 100%);box-shadow:0 2px 6px rgba(0,0,0,.25)}
+  #mcover{position:absolute;top:0;right:0;bottom:0;width:100%;background:rgba(36,48,80,.62)}
+  #meter i{position:absolute;top:0;bottom:0;width:2px;background:#fff;opacity:.9}
+
+  /* gear + panel */
+  #gear{position:fixed;right:12px;top:12px;width:44px;height:44px;border-radius:50%;border:0;cursor:pointer;
+    font-size:22px;background:rgba(255,255,255,.7);opacity:.65;transition:opacity .2s}
+  #gear:hover,#gear:focus-visible{opacity:1}
+  #panel{position:fixed;right:12px;top:64px;width:min(290px,90vw);padding:16px;border-radius:16px;
+    background:#fffdf6;box-shadow:0 10px 30px rgba(0,0,0,.3);display:none}
+  #panel.open{display:block}
+  #panel h3{font-size:17px;margin-bottom:10px}
+  .lbl{font-size:13px;font-weight:700;margin:12px 0 5px}
+  .seg{display:flex;gap:6px}
+  .seg button,.row button{flex:1;padding:9px 6px;border-radius:10px;border:2px solid #e3c24a;background:#fff;
+    font:inherit;font-size:13px;font-weight:700;cursor:pointer;color:#2b2a4c}
+  .seg button.on{background:#ffd93d}
+  .row{display:flex;gap:6px;margin-top:14px}
+  .row button{border-color:#c9c4e6}
+  #panel input[type=range]{width:100%;accent-color:#e5a400}
+  .small{display:flex;justify-content:space-between;font-size:11px;color:#6b6a85}
+  #demoRow{display:none}
+  #demoRow.show{display:block}
+
+  /* start screen */
+  #start{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:16px;
+    background:rgba(60,140,210,.55);backdrop-filter:blur(5px)}
+  #start .card{width:min(520px,100%);background:#fffdf6;border-radius:24px;padding:28px 28px 22px;text-align:center;
+    box-shadow:0 14px 40px rgba(0,0,0,.35)}
+  #start .big{font-size:56px;line-height:1}
+  #start h1{font-size:clamp(24px,5vw,32px);margin:8px 0 4px}
+  #start .school{font-weight:700;color:#8a6a00;margin-bottom:14px}
+  #start p{font-size:15px;line-height:1.5;margin:6px 0}
+  #startBtn{margin-top:16px;padding:14px 38px;border-radius:999px;border:0;font:inherit;font-size:20px;font-weight:800;
+    background:#ffc928;color:#3a2a10;cursor:pointer;box-shadow:0 5px 0 #c99500}
+  #startBtn:active{transform:translateY(3px);box-shadow:0 2px 0 #c99500}
+  #demoBtn{display:block;margin:14px auto 0;background:none;border:0;font:inherit;font-size:13px;color:#4a4a80;
+    text-decoration:underline;cursor:pointer}
+  #msg{margin-top:12px;font-size:14px;font-weight:700;color:#c0262d;min-height:0}
+  #start .by{margin-top:14px;font-size:12px;color:#6b6a85}
+  button:focus-visible{outline:3px solid #2b6fff;outline-offset:2px}
+  @media (prefers-reduced-motion:reduce){#shh.on{animation:none}}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="edge"></div>
+<div id="flash"></div>
+<div id="shh"><div class="emoji">🤫</div><div class="word">Shhh!</div></div>
+
+<div id="chip"></div>
+<div id="credit">Khawlah Bint Thalabah (5-9)<br>Created by T.Badria Alfalahi</div>
+
+<div id="meterWrap">
+  <span id="mlabel">Volume</span>
+  <div id="meter"><div id="mcover"></div><i id="tWake"></i><i id="tLimit"></i></div>
+</div>
+
+<button id="gear" aria-label="Settings">⚙️</button>
+<div id="panel">
+  <h3>Settings</h3>
+  <div class="lbl">Mode</div>
+  <div class="seg" id="modes">
+    <button data-m="exam">📝 Exam</button>
+    <button data-m="groups">👥 Groups</button>
+    <button data-m="activity">🎨 Activity</button>
+  </div>
+  <div class="lbl">Sensitivity</div>
+  <input type="range" id="sens" min="1" max="10" step="1" value="5">
+  <div class="small"><span>Less sensitive</span><span>More sensitive</span></div>
+  <div id="demoRow">
+    <div class="lbl">Test volume (demo)</div>
+    <input type="range" id="demoSlider" min="0" max="100" value="0">
+  </div>
+  <div class="row">
+    <button id="sndBtn">🔊 Sound: On</button>
+    <button id="fsBtn">⛶ Full screen</button>
+  </div>
+</div>
+
+<div id="start">
+  <div class="card">
+    <div class="big">🐝</div>
+    <h1>The Buzzing Bees Noise Meter</h1>
+    <div class="school">Khawlah Bint Thalabah (5-9)</div>
+    <p>Quiet class: the bees sleep on the flowers.<br>Noisy class: the bees wake up and buzz!</p>
+    <p>Click <b>Start</b> and allow the microphone.<br>Please open this file in <b>Google Chrome</b>.</p>
+    <button id="startBtn">Start</button>
+    <button id="demoBtn">Try it without a microphone</button>
+    <div id="msg"></div>
+    <div class="by">Created by T.Badria Alfalahi</div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const rand = (a, b) => a + Math.random() * (b - a);
+
+  const MODES = {
+    exam:     { name: 'Exam mode',     icon: '📝', desc: 'Silence please',   wake: .10, limit: .32 },
+    groups:   { name: 'Groups mode',   icon: '👥', desc: 'Quiet talking',    wake: .28, limit: .60 },
+    activity: { name: 'Activity mode', icon: '🎨', desc: 'Lively work',      wake: .45, limit: .82 }
+  };
+  let mode = 'groups', sens = 5, soundOn = true, demo = false, started = false;
+
+  /* ---------- canvas ---------- */
+  const cv = $('cv'), cx = cv.getContext('2d');
+  const skyC = document.createElement('canvas'), grassC = document.createElement('canvas');
+  let W, H, DPR, S, flowers = [], bees = [], clouds = [];
+  const COLORS = ['#ff6fa5', '#ff8a3d', '#b66cff', '#ff4d6d', '#ffd23f', '#ffffff', '#6ec6ff', '#ff9ecb'];
+
+  function resize() {
+    W = innerWidth; H = innerHeight; DPR = Math.min(devicePixelRatio || 1, 2);
+    S = clamp(Math.min(W, H) / 760, .5, 2.2);
+    cv.width = W * DPR; cv.height = H * DPR;
+    buildSky(); buildGrass(); buildFlowers();
+    if (!bees.length) {
+      for (let i = 0; i < 30; i++) bees.push({
+        i, x: 0, y: 0, vx: 0, vy: 0, dir: Math.random() < .5 ? 1 : -1, ph: rand(0, 6.28), wp: rand(0, 6.28),
+        tx: 0, ty: 0, wt: 0, ca: i / 30 * 6.283 + rand(-.1, .1), cr: rand(.16, .36), asleep: true
+      });
+      bees.forEach(b => { b.x = flowers[b.i].x; b.y = flowers[b.i].y - flowers[b.i].h - 26 * S; });
+    }
+    bees.forEach(b => { const f = flowers[b.i]; b.hx = f.x; b.hy = f.y - f.h - 26 * S * f.sc; });
+    clouds = [0, 1, 2, 3].map(i => ({ x: (i + .3) / 4 * W, y: H * (.08 + (i % 2) * .12), s: rand(.8, 1.3), v: rand(6, 14) }));
+  }
+
+  function setupLayer(c) {
+    c.width = W * DPR; c.height = H * DPR;
+    const g = c.getContext('2d'); g.setTransform(DPR, 0, 0, DPR, 0, 0); return g;
+  }
+  function buildSky() {
+    const g = setupLayer(skyC);
+    const gr = g.createLinearGradient(0, 0, 0, H * .75);
+    gr.addColorStop(0, '#3f9fe9'); gr.addColorStop(1, '#bfe7ff');
+    g.fillStyle = gr; g.fillRect(0, 0, W, H);
+  }
+  function buildGrass() {
+    const g = setupLayer(grassC);
+    let gr = g.createLinearGradient(0, H * .6, 0, H);
+    gr.addColorStop(0, '#8be06b'); gr.addColorStop(1, '#3a9f3a');
+    g.fillStyle = gr;
+    g.beginPath(); g.moveTo(0, H * .70);
+    g.bezierCurveTo(W * .25, H * .62, W * .5, H * .75, W * .75, H * .66);
+    g.bezierCurveTo(W * .88, H * .62, W * .95, H * .66, W, H * .68);
+    g.lineTo(W, H); g.lineTo(0, H); g.closePath(); g.fill();
+    g.lineCap = 'round';
+    for (let i = 0; i < W / 2.2; i++) {
+      const x = rand(0, W), y = rand(H * .7, H), h = rand(8, 20) * S;
+      g.strokeStyle = Math.random() < .5 ? '#2f8d34' : '#a6ec7c'; g.lineWidth = rand(1.2, 2.6) * S;
+      g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + rand(-5, 5) * S, y - h * .6, x + rand(-8, 8) * S, y - h); g.stroke();
+    }
+  }
+  function buildFlowers() {
+    flowers = [];
+    const rows = [{ y: .80, sc: .8 }, { y: .88, sc: .92 }, { y: .96, sc: 1.05 }];
+    let idx = 0;
+    rows.forEach((r, ri) => {
+      for (let c = 0; c < 10; c++) {
+        flowers.push({
+          x: (c + .5) / 10 * W + rand(-.3, .3) * W / 10, y: r.y * H, sc: r.sc,
+          h: rand(46, 80) * S * r.sc, col: COLORS[(idx * 3 + ri) % COLORS.length],
+          n: 5 + (idx % 3), ph: rand(0, 6.28), pr: rand(8, 11) * S * r.sc
+        });
+        idx++;
+      }
+    });
+  }
+
+  /* ---------- drawing ---------- */
+  function drawSky(t) {
+    cx.setTransform(1, 0, 0, 1, 0, 0); cx.drawImage(skyC, 0, 0);
+    cx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    const sx = W * .86, sy = H * .22, sr = 46 * S;
+    const sg = cx.createRadialGradient(sx, sy, sr * .3, sx, sy, sr * 2.4);
+    sg.addColorStop(0, 'rgba(255,240,150,.9)'); sg.addColorStop(1, 'rgba(255,240,150,0)');
+    cx.fillStyle = sg; cx.beginPath(); cx.arc(sx, sy, sr * 2.4, 0, 6.283); cx.fill();
+    cx.fillStyle = '#fff3a8'; cx.beginPath(); cx.arc(sx, sy, sr, 0, 6.283); cx.fill();
+    cx.fillStyle = 'rgba(255,255,255,.92)';
+    clouds.forEach(c => {
+      c.x += c.v * dtG; if (c.x > W + 150 * S) c.x = -150 * S;
+      const s = c.s * S;
+      cx.beginPath();
+      [[0, 0, 30], [32, -12, 36], [68, 0, 30], [34, 8, 34]].forEach(p => cx.arc(c.x + p[0] * s, c.y + p[1] * s, p[2] * s, 0, 6.283));
+      cx.fill();
+    });
+  }
+  function drawGrass() { cx.setTransform(1, 0, 0, 1, 0, 0); cx.drawImage(grassC, 0, 0); cx.setTransform(DPR, 0, 0, DPR, 0, 0); }
+
+  function drawFlower(f, t) {
+    const sway = Math.sin(t * 1.2 + f.ph) * 3 * S * f.sc, hx = f.x + sway, hy = f.y - f.h;
+    cx.strokeStyle = '#2f8f35'; cx.lineWidth = 3.2 * S * f.sc; cx.lineCap = 'round';
+    cx.beginPath(); cx.moveTo(f.x, f.y); cx.quadraticCurveTo(f.x, f.y - f.h * .5, hx, hy); cx.stroke();
+    cx.fillStyle = '#3aa63f'; cx.beginPath();
+    cx.ellipse(f.x + 9 * S * f.sc, f.y - f.h * .35, 9 * S * f.sc, 4 * S * f.sc, -.5, 0, 6.283); cx.fill();
+    cx.fillStyle = f.col;
+    for (let k = 0; k < f.n; k++) {
+      const a = k / f.n * 6.283;
+      cx.beginPath(); cx.arc(hx + Math.cos(a) * f.pr, hy + Math.sin(a) * f.pr, f.pr * .85, 0, 6.283); cx.fill();
+    }
+    cx.fillStyle = '#ffcf33'; cx.beginPath(); cx.arc(hx, hy, f.pr * .7, 0, 6.283); cx.fill();
+  }
+
+  // expr: 0 sleeping, 1 happy, 2 annoyed, 3 shouting
+  function drawBee(b, expr, wing) {
+    const sz = S * 1.05, tilt = clamp(b.vy / 600, -.35, .35) * b.dir;
+    cx.save(); cx.translate(b.x, b.y); cx.rotate(tilt); cx.scale(b.dir * sz, sz);
+    const dark = '#3a2a10';
+    // wings
+    cx.fillStyle = 'rgba(225,243,255,.85)'; cx.strokeStyle = 'rgba(110,160,215,.9)'; cx.lineWidth = 1;
+    [[-.35 - wing, 1], [.2 + wing * .6, .8]].forEach(w => {
+      cx.save(); cx.translate(-3, -8); cx.rotate(w[0]); cx.globalAlpha = w[1];
+      cx.beginPath(); cx.ellipse(0, -9, 6, 11, 0, 0, 6.283); cx.fill(); cx.stroke(); cx.restore();
+    });
+    // stinger
+    cx.fillStyle = dark; cx.beginPath(); cx.moveTo(-16, -2.5); cx.lineTo(-23, 0); cx.lineTo(-16, 3); cx.fill();
+    // body
+    cx.fillStyle = '#ffc928'; cx.beginPath(); cx.ellipse(0, 0, 17, 12, 0, 0, 6.283); cx.fill();
+    cx.save(); cx.beginPath(); cx.ellipse(0, 0, 17, 12, 0, 0, 6.283); cx.clip();
+    cx.fillStyle = dark; cx.fillRect(-10, -14, 5.5, 28); cx.fillRect(0, -14, 5.5, 28); cx.restore();
+    cx.strokeStyle = dark; cx.lineWidth = 1.6; cx.beginPath(); cx.ellipse(0, 0, 17, 12, 0, 0, 6.283); cx.stroke();
+    // antennae
+    cx.lineWidth = 1.4; cx.beginPath(); cx.moveTo(13, -8); cx.lineTo(11, -18); cx.moveTo(18, -8); cx.lineTo(23, -17); cx.stroke();
+    cx.fillStyle = dark; cx.beginPath(); cx.arc(11, -18, 1.8, 0, 6.283); cx.arc(23, -17, 1.8, 0, 6.283); cx.fill();
+    // head
+    cx.fillStyle = '#ffd84d'; cx.beginPath(); cx.arc(15, -1, 9.5, 0, 6.283); cx.fill(); cx.stroke();
+    cx.fillStyle = 'rgba(255,110,140,.55)'; cx.beginPath(); cx.arc(10.5, 3, 2.1, 0, 6.283); cx.arc(21, 3, 2.1, 0, 6.283); cx.fill();
+    // eyes
+    if (expr === 0) {
+      cx.lineWidth = 1.5;
+      cx.beginPath(); cx.arc(12, -3, 2.8, .1 * Math.PI, .9 * Math.PI); cx.stroke();
+      cx.beginPath(); cx.arc(20, -3, 2.8, .1 * Math.PI, .9 * Math.PI); cx.stroke();
+    } else {
+      cx.fillStyle = '#fff'; cx.beginPath(); cx.arc(12, -3, 3.4, 0, 6.283); cx.arc(20, -3, 3.4, 0, 6.283); cx.fill();
+      cx.lineWidth = 1; cx.stroke();
+      cx.fillStyle = dark; cx.beginPath(); cx.arc(13, -3, 1.8, 0, 6.283); cx.arc(21, -3, 1.8, 0, 6.283); cx.fill();
+    }
+    if (expr >= 2) {
+      cx.lineWidth = 1.8; cx.strokeStyle = dark; cx.beginPath();
+      cx.moveTo(8.5, -9); cx.lineTo(14, -6); cx.moveTo(23.5, -9); cx.lineTo(18, -6); cx.stroke();
+    }
+    // mouth
+    cx.strokeStyle = dark; cx.lineWidth = 1.4;
+    if (expr === 3) { cx.fillStyle = '#7a1c12'; cx.beginPath(); cx.ellipse(16, 5, 3, 3.4, 0, 0, 6.283); cx.fill(); cx.stroke(); }
+    else if (expr === 2) { cx.beginPath(); cx.arc(16, 7.5, 3.2, 1.15 * Math.PI, 1.85 * Math.PI); cx.stroke(); }
+    else { cx.beginPath(); cx.arc(16, 3, 3.4, .15 * Math.PI, .85 * Math.PI); cx.stroke(); }
+    cx.restore();
+  }
+
+  /* ---------- audio ---------- */
+  let ac, an, buf, master, buzzG, buzzO1, buzzO2, whistleG, whistleO;
+  function initAudio() {
+    if (ac) return;
+    ac = new (window.AudioContext || window.webkitAudioContext)();
+    master = ac.createGain(); master.gain.value = .6; master.connect(ac.destination);
+    // buzz: two detuned saws, low-passed, with tremolo
+    buzzO1 = ac.createOscillator(); buzzO2 = ac.createOscillator();
+    buzzO1.type = buzzO2.type = 'sawtooth'; buzzO1.frequency.value = 120; buzzO2.frequency.value = 124;
+    const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 700;
+    const trem = ac.createGain(); trem.gain.value = .6;
+    const lfo = ac.createOscillator(); lfo.frequency.value = 32;
+    const lfoG = ac.createGain(); lfoG.gain.value = .4; lfo.connect(lfoG); lfoG.connect(trem.gain);
+    buzzG = ac.createGain(); buzzG.gain.value = 0;
+    buzzO1.connect(lp); buzzO2.connect(lp); lp.connect(trem); trem.connect(buzzG); buzzG.connect(master);
+    // whistle: sine with vibrato
+    whistleO = ac.createOscillator(); whistleO.type = 'sine'; whistleO.frequency.value = 2200;
+    const vib = ac.createOscillator(); vib.frequency.value = 9;
+    const vibG = ac.createGain(); vibG.gain.value = 260; vib.connect(vibG); vibG.connect(whistleO.frequency);
+    whistleG = ac.createGain(); whistleG.gain.value = 0; whistleO.connect(whistleG); whistleG.connect(master);
+    [buzzO1, buzzO2, lfo, whistleO, vib].forEach(o => o.start());
+  }
+  async function startMic() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw { name: 'NoSupport' };
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: false, autoGainControl: false }
+    });
+    const src = ac.createMediaStreamSource(stream);
+    an = ac.createAnalyser(); an.fftSize = 1024; src.connect(an);
+    buf = new Float32Array(an.fftSize);
+  }
+  function readMic() {
+    an.getFloatTimeDomainData(buf);
+    let s = 0; for (let i = 0; i < buf.length; i++) s += buf[i] * buf[i];
+    const db = 20 * Math.log10(Math.sqrt(s / buf.length) + 1e-8);
+    return clamp((db + (sens - 5) * 4 + 50) / 38, 0, 1);
+  }
+
+  /* ---------- state ---------- */
+  let level = 0, awakeNow = false, calmT = 0, overT = 0, quietT = 0, alarm = false, dtG = .016, last = 0;
+
+  function frame(ts) {
+    const t = ts / 1000; dtG = Math.min(.05, t - last || .016); last = t; const dt = dtG;
+    const m = MODES[mode];
+
+    let raw = demo ? $('demoSlider').value / 100 : (an ? readMic() : 0);
+    level += (raw - level) * (1 - Math.exp(-dt * (raw > level ? 16 : 3.2)));
+
+    if (level > m.wake) { awakeNow = true; calmT = 0; }
+    else if (level < m.wake * .85) { calmT += dt; if (calmT > 1) awakeNow = false; }
+    overT = level > m.limit ? overT + dt : Math.max(0, overT - dt * 2);
+    if (!alarm && overT > .35) { alarm = true; quietT = 0; }
+    if (alarm) { quietT = level < m.limit * .85 ? quietT + dt : 0; if (quietT > 1.4) alarm = false; }
+    const a = awakeNow ? clamp((level - m.wake) / (m.limit - m.wake), 0, 1) : 0;
+
+    // bees
+    for (const b of bees) {
+      let tx, ty, maxSp, steer;
+      const hx = b.hx + Math.cos(t * .6 + b.ph) * 8 * S, hy = b.hy + Math.sin(t * 1.3 + b.ph) * 5 * S;
+      if (alarm) {
+        const ang = b.ca + t * .7, R = Math.min(W, H);
+        tx = W / 2 + Math.cos(ang) * b.cr * R * 1.1; ty = H / 2 + Math.sin(ang) * b.cr * R * .8; maxSp = 700 * S; steer = 6;
+      } else if (!awakeNow) { tx = hx; ty = hy; maxSp = 280 * S; steer = 4; }
+      else {
+        b.wt -= dt;
+        if (b.wt <= 0) {
+          if (Math.random() < a * .85) { b.tx = rand(.04 * W, .96 * W); b.ty = rand(.06 * H, .85 * H); }
+          else { b.tx = b.hx + rand(-1, 1) * (50 + 170 * a) * S; b.ty = clamp(b.hy - rand(0, 1) * (40 + 180 * a) * S, .04 * H, .92 * H); }
+          b.wt = rand(.5, 1.5) * (1.25 - .8 * a);
+        }
+        tx = b.tx; ty = b.ty; maxSp = (100 + 560 * a) * S; steer = 3 + 5 * a;
+      }
+      const dx = tx - b.x, dy = ty - b.y, d = Math.hypot(dx, dy) || 1, sp = Math.min(maxSp, d * 3.5), k = Math.min(1, dt * steer);
+      b.vx += (dx / d * sp - b.vx) * k; b.vy += (dy / d * sp - b.vy) * k;
+      b.x += b.vx * dt; b.y += b.vy * dt;
+      if (a > .3 && !alarm) { b.x += (Math.random() - .5) * a * 5 * S; b.y += (Math.random() - .5) * a * 5 * S; }
+      if (Math.abs(b.vx) > 20 * S) b.dir = b.vx > 0 ? 1 : -1;
+      b.asleep = !alarm && !awakeNow && d < 40 * S;
+      b.wp += dt * 6.283 * (b.asleep ? 1.5 : alarm ? 34 : 14 + 18 * a);
+    }
+
+    // draw
+    drawSky(t); drawGrass();
+    flowers.forEach(f => drawFlower(f, t));
+    for (const b of bees) {
+      const wing = (b.asleep ? .08 : .75) * (.5 + .5 * Math.sin(b.wp));
+      const expr = b.asleep ? 0 : alarm ? 3 : a > .45 ? 2 : 1;
+      drawBee(b, expr, wing);
+      if (b.asleep) {
+        const p = ((t * .5 + b.ph) % 1);
+        cx.save(); cx.globalAlpha = Math.sin(p * Math.PI); cx.fillStyle = '#fff';
+        cx.font = `bold ${Math.round(15 * S)}px "Trebuchet MS",Arial`; cx.strokeStyle = '#2b5fa8'; cx.lineWidth = 3 * S;
+        const zx = b.x + 14 * S + p * 10 * S, zy = b.y - 16 * S - p * 22 * S;
+        cx.strokeText('z', zx, zy); cx.fillText('z', zx, zy); cx.restore();
+      }
+    }
+
+    // screen effects
+    let eo = 0;
+    if (alarm) eo = .65 + .35 * Math.sin(t * 15);
+    else if (awakeNow && a > 0) eo = Math.pow(a, 1.4) * (.55 + .45 * Math.sin(t * (4 + 8 * a)));
+    $('edge').style.opacity = eo.toFixed(3);
+    $('flash').style.opacity = alarm ? (.5 * (.5 + .5 * Math.sin(t * 10))).toFixed(3) : 0;
+    $('shh').classList.toggle('on', alarm);
+    $('mcover').style.width = ((1 - level) * 100).toFixed(1) + '%';
+
+    // sound
+    if (ac) {
+      const now = ac.currentTime;
+      let bg = 0;
+      if (soundOn && started) bg = alarm ? .1 : (awakeNow ? .02 + .2 * a * a : 0);
+      buzzG.gain.setTargetAtTime(bg, now, .08);
+      const bf = 105 + 120 * a + (alarm ? 40 : 0);
+      buzzO1.frequency.setTargetAtTime(bf, now, .1); buzzO2.frequency.setTargetAtTime(bf * 1.03, now, .1);
+      whistleG.gain.setTargetAtTime(soundOn && alarm ? .13 : 0, now, .03);
+    }
+    requestAnimationFrame(frame);
+  }
+
+  /* ---------- UI ---------- */
+  function setMode(k) {
+    mode = k; const m = MODES[k];
+    $('chip').textContent = m.icon + ' ' + m.name + ' · ' + m.desc;
+    document.querySelectorAll('#modes button').forEach(b => b.classList.toggle('on', b.dataset.m === k));
+    $('tWake').style.left = (m.wake * 100) + '%'; $('tLimit').style.left = (m.limit * 100) + '%';
+  }
+  document.querySelectorAll('#modes button').forEach(b => b.onclick = () => setMode(b.dataset.m));
+  $('sens').oninput = e => sens = +e.target.value;
+  $('gear').onclick = e => { e.stopPropagation(); $('panel').classList.toggle('open'); };
+  document.addEventListener('click', e => { if (!$('panel').contains(e.target)) $('panel').classList.remove('open'); });
+  $('sndBtn').onclick = () => { soundOn = !soundOn; $('sndBtn').textContent = soundOn ? '🔊 Sound: On' : '🔇 Sound: Off'; };
+  $('fsBtn').onclick = () => {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen();
+  };
+
+  function begin() { started = true; $('start').style.display = 'none'; if (ac && ac.state === 'suspended') ac.resume(); }
+  $('startBtn').onclick = async () => {
+    $('msg').textContent = '';
+    try { initAudio(); await startMic(); begin(); }
+    catch (err) {
+      const n = err && err.name;
+      $('msg').textContent =
+        n === 'NotAllowedError' || n === 'SecurityError' ? 'The microphone is blocked. Click the icon in the address bar, choose Allow for Microphone, then reload this page.' :
+        n === 'NotFoundError' ? 'No microphone was found. Please connect one and try again.' :
+        n === 'NoSupport' ? 'This browser cannot use the microphone. Please open this file in Google Chrome.' :
+        'Could not start the microphone. Please check it and try again.';
+    }
+  };
+  $('demoBtn').onclick = () => { demo = true; initAudio(); $('demoRow').classList.add('show'); begin(); $('panel').classList.add('open'); };
+  document.addEventListener('visibilitychange', () => { if (ac && ac.state === 'suspended' && started) ac.resume(); });
+
+  addEventListener('resize', resize);
+  resize(); setMode('groups');
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
